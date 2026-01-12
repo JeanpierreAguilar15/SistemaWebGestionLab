@@ -1,0 +1,317 @@
+openapi: 3.0.0
+info:
+  title: Laboratorio Clínico Franz - API para Dialogflow CX
+  description: API REST para integración con Dialogflow CX
+  version: 1.0.0
+
+servers:
+  - url: https://sweet-beds-enjoy.loca.lt
+    description: Servidor de desarrollo
+
+tags:
+  - name: Exámenes
+    description: Operaciones relacionadas con exámenes de laboratorio
+  - name: Citas
+    description: Operaciones relacionadas con agendamiento de citas
+  - name: Handoff
+    description: Transferencia a operador humano
+  - name: Webhook
+    description: Webhook para Dialogflow CX
+
+paths:
+  /api/v1/dialogflow/examenes:
+    get:
+      operationId: listarExamenes
+      summary: Listar todos los exámenes disponibles
+      description: Devuelve la lista de exámenes con sus precios actuales
+      responses:
+        '200':
+          description: Lista de exámenes obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  mensaje:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        codigo:
+                          type: integer
+                        nombre:
+                          type: string
+                        categoria:
+                          type: string
+                        precio:
+                          type: number
+                        moneda:
+                          type: string
+                        requiere_ayuno:
+                          type: boolean
+                        horas_ayuno:
+                          type: integer
+                        tiempo_entrega_horas:
+                          type: integer
+
+  /api/v1/dialogflow/examenes/precio/{nombre}:
+    get:
+      operationId: consultarPrecioExamen
+      summary: Consultar precio de un examen
+      description: Busca un examen por nombre y devuelve su precio actual
+      parameters:
+        - name: nombre
+          in: path
+          required: true
+          description: Nombre del examen (búsqueda parcial flexible)
+          schema:
+            type: string
+          example: hemograma
+      responses:
+        '200':
+          description: Precio del examen encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: true si encontró el examen
+                  mensaje:
+                    type: string
+                    description: Mensaje con el precio o error
+                  data:
+                    type: object
+                    description: Datos del examen (solo si success=true)
+                    properties:
+                      codigo:
+                        type: integer
+                      nombre:
+                        type: string
+                      categoria:
+                        type: string
+                      precio:
+                        type: number
+                      moneda:
+                        type: string
+                      requiere_ayuno:
+                        type: boolean
+                      horas_ayuno:
+                        type: integer
+                      tiempo_entrega_horas:
+                        type: integer
+                  error_code:
+                    type: string
+                    description: Código de error si success=false
+
+  /api/v1/dialogflow/examenes/rango/{nombre}:
+    get:
+      operationId: consultarRangoExamen
+      summary: Consultar valores de referencia de un examen
+      description: Devuelve los rangos normales de un examen
+      parameters:
+        - name: nombre
+          in: path
+          required: true
+          description: Nombre del examen
+          schema:
+            type: string
+          example: glucosa
+      responses:
+        '200':
+          description: Valores de referencia del examen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  mensaje:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      nombre:
+                        type: string
+                      valor_min:
+                        type: number
+                      valor_max:
+                        type: number
+                      unidad_medida:
+                        type: string
+                      valores_texto:
+                        type: string
+                  error_code:
+                    type: string
+
+  /api/v1/dialogflow/citas/disponibilidad:
+    get:
+      operationId: consultarDisponibilidad
+      summary: Consultar disponibilidad de horarios
+      description: Devuelve los horarios disponibles para una fecha
+      parameters:
+        - name: fecha
+          in: query
+          required: true
+          description: Fecha en formato YYYY-MM-DD
+          schema:
+            type: string
+          example: '2025-01-15'
+        - name: servicio
+          in: query
+          required: false
+          description: Código del servicio (opcional)
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Disponibilidad consultada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  mensaje:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      fecha:
+                        type: string
+                      total_horarios:
+                        type: integer
+                      horarios:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            slot_id:
+                              type: integer
+                            hora:
+                              type: string
+                            cupos:
+                              type: integer
+                            sede:
+                              type: string
+                            servicio:
+                              type: string
+
+  /api/v1/dialogflow/citas/agendar:
+    post:
+      operationId: agendarCita
+      summary: Agendar una nueva cita
+      description: Crea una cita para un paciente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fecha
+                - hora
+                - cedula_paciente
+              properties:
+                fecha:
+                  type: string
+                  description: Fecha YYYY-MM-DD
+                  example: '2025-01-15'
+                hora:
+                  type: string
+                  description: Hora HH:MM
+                  example: '09:00'
+                cedula_paciente:
+                  type: string
+                  description: Cédula del paciente
+                  example: '1234567890'
+                examen:
+                  type: string
+                  description: Nombre del examen
+                codigo_servicio:
+                  type: integer
+                codigo_sede:
+                  type: integer
+                observaciones:
+                  type: string
+      responses:
+        '200':
+          description: Cita agendada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  mensaje:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      codigo_cita:
+                        type: integer
+                      fecha:
+                        type: string
+                      hora:
+                        type: string
+                      servicio:
+                        type: string
+                      sede:
+                        type: string
+                      estado:
+                        type: string
+                  error_code:
+                    type: string
+
+  /api/v1/dialogflow/citas/paciente/{cedula}:
+    get:
+      operationId: consultarCitasPaciente
+      summary: Consultar citas de un paciente
+      description: Devuelve las citas pendientes de un paciente
+      parameters:
+        - name: cedula
+          in: path
+          required: true
+          description: Cédula del paciente
+          schema:
+            type: string
+          example: '1234567890'
+      responses:
+        '200':
+          description: Citas del paciente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  mensaje:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        codigo_cita:
+                          type: integer
+                        fecha:
+                          type: string
+                        hora:
+                          type: string
+                        servicio:
+                          type: string
+                        sede:
+                          type: string
+                        estado:
+                          type: string
+                  error_code:
+                    type: string

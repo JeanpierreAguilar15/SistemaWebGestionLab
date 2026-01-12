@@ -1,0 +1,924 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["usuarios", "agenda", "catalogo", "resultados", "pagos", "inventario", "comunicaciones", "auditoria"]
+}
+
+// =====================================================
+// ESQUEMA: usuarios
+// =====================================================
+
+model Rol {
+  codigo_rol      Int       @id @default(autoincrement())
+  nombre          String    @unique @db.VarChar(50)
+  descripcion     String?   @db.Text
+  nivel_acceso    Int       @default(1)
+  activo          Boolean   @default(true)
+  fecha_creacion  DateTime  @default(now())
+
+  usuarios        Usuario[]
+
+  @@map("rol")
+  @@schema("usuarios")
+}
+
+model Usuario {
+  codigo_usuario                Int       @id @default(autoincrement())
+  codigo_rol                    Int
+  cedula                        String    @unique @db.VarChar(10)
+  nombres                       String    @db.VarChar(100)
+  apellidos                     String    @db.VarChar(100)
+  email                         String    @unique @db.VarChar(100)
+  telefono                      String?   @db.VarChar(15)
+  fecha_nacimiento              DateTime? @db.Date
+  genero                        String?   @db.VarChar(20)
+  direccion                     String?   @db.Text
+
+  password_hash                 String    @db.VarChar(255)
+  salt                          String    @db.VarChar(255)
+
+  email_verificado              Boolean   @default(false)
+  telefono_verificado           Boolean   @default(false)
+  activo                        Boolean   @default(true)
+
+  intentos_fallidos             Int       @default(0)
+  cuenta_bloqueada              Boolean   @default(false)
+  fecha_bloqueo                 DateTime?
+
+  ultima_conexion               DateTime?
+  ip_ultima_conexion            String?   @db.VarChar(45)
+
+  contacto_emergencia_nombre    String?   @db.VarChar(200)
+  contacto_emergencia_telefono  String?   @db.VarChar(15)
+
+  fecha_creacion                DateTime  @default(now())
+  fecha_actualizacion           DateTime  @default(now()) @updatedAt
+
+  rol                           Rol       @relation(fields: [codigo_rol], references: [codigo_rol])
+
+  sesiones                      Sesion[]
+  consentimientos               Consentimiento[]
+  perfil_medico                 PerfilMedico?
+  citas_como_paciente           Cita[]    @relation("CitasPaciente")
+  cotizaciones                  Cotizacion[]
+  pagos                         Pago[]
+  muestras_tomadas              Muestra[] @relation("MuestrasTomadas")
+  muestras_como_paciente        Muestra[] @relation("MuestrasPaciente")
+  resultados_procesados         Resultado[] @relation("ResultadosProcesados")
+  resultados_validados          Resultado[] @relation("ResultadosValidados")
+  descargas_resultados          DescargaResultado[]
+  movimientos_inventario        Movimiento[]
+  conversaciones                Conversacion[] @relation("ConversacionesUsuario")
+  conversaciones_atendidas      Conversacion[] @relation("ConversacionesAtendidas")
+  conversaciones_chatbot        ConversacionChatbot[] @relation("ConversacionesChatbot")
+  mensajes                      Mensaje[]
+  notificaciones                Notificacion[]
+  logs_actividad                LogActividad[]
+  logs_error                    LogError[]
+  ordenes_compra_creadas        OrdenCompra[]
+  intentos_login                LogIntentoLogin[] @relation("IntentosLogin")
+
+  @@map("usuario")
+  @@schema("usuarios")
+}
+
+model Sesion {
+  codigo_sesion       Int       @id @default(autoincrement())
+  codigo_usuario      Int
+  refresh_token       String    @unique @db.VarChar(500)
+  access_token_jti    String?   @db.VarChar(100)
+  ip_address          String?   @db.VarChar(45)
+  user_agent          String?   @db.Text
+  fecha_creacion      DateTime  @default(now())
+  fecha_expiracion    DateTime
+  activo              Boolean   @default(true)
+  revocado            Boolean   @default(false)
+  fecha_revocacion    DateTime?
+
+  usuario             Usuario   @relation(fields: [codigo_usuario], references: [codigo_usuario])
+
+  @@map("sesion")
+  @@schema("usuarios")
+}
+
+model Consentimiento {
+  codigo_consentimiento   Int       @id @default(autoincrement())
+  codigo_usuario          Int
+  tipo_consentimiento     String    @db.VarChar(50)
+  aceptado                Boolean
+  fecha_consentimiento    DateTime  @default(now())
+  version_politica        String?   @db.VarChar(20)
+
+  usuario                 Usuario   @relation(fields: [codigo_usuario], references: [codigo_usuario])
+
+  @@map("consentimiento")
+  @@schema("usuarios")
+}
+
+model PerfilMedico {
+  codigo_perfil_medico    Int       @id @default(autoincrement())
+  codigo_usuario          Int       @unique
+  tipo_sangre             String?   @db.VarChar(5)
+  alergias                String?   @db.Text
+  condiciones_cronicas    String?   @db.Text
+  medicamentos_actuales   String?   @db.Text
+  cirugias_previas        String?   @db.Text
+  antecedentes_familiares String?   @db.Text
+  fecha_actualizacion     DateTime  @default(now()) @updatedAt
+
+  usuario                 Usuario   @relation(fields: [codigo_usuario], references: [codigo_usuario])
+
+  @@map("perfil_medico")
+  @@schema("usuarios")
+}
+
+model ConfiguracionSistema {
+  codigo_config       Int       @id @default(autoincrement())
+  clave               String    @unique @db.VarChar(100)
+  valor               String    @db.Text
+  descripcion         String?   @db.Text
+  grupo               String    @db.VarChar(50)
+  tipo_dato           String    @default("STRING") @db.VarChar(20)
+  es_publico          Boolean   @default(false)
+  fecha_creacion      DateTime  @default(now())
+  fecha_actualizacion DateTime  @updatedAt
+
+  @@map("configuracion_sistema")
+  @@schema("usuarios")
+}
+
+// =====================================================
+// ESQUEMA: agenda
+// =====================================================
+
+model Servicio {
+  codigo_servicio   Int       @id @default(autoincrement())
+  nombre            String    @db.VarChar(200)
+  descripcion       String?   @db.Text
+  activo            Boolean   @default(true)
+  fecha_creacion    DateTime  @default(now())
+
+  slots             Slot[]
+  horarios          HorarioAtencion[]
+
+  @@map("servicio")
+  @@schema("agenda")
+}
+
+model Sede {
+  codigo_sede       Int       @id @default(autoincrement())
+  nombre            String    @db.VarChar(200)
+  direccion         String    @db.Text
+  telefono          String?   @db.VarChar(15)
+  email             String?   @db.VarChar(100)
+  activo            Boolean   @default(true)
+
+  slots             Slot[]
+  horarios          HorarioAtencion[]
+
+  @@map("sede")
+  @@schema("agenda")
+}
+
+model HorarioAtencion {
+  codigo_horario    Int       @id @default(autoincrement())
+  codigo_servicio   Int
+  codigo_sede       Int
+  dia_semana        Int
+  hora_inicio       DateTime  @db.Time
+  hora_fin          DateTime  @db.Time
+  cupos_por_hora    Int       @default(4)
+  activo            Boolean   @default(true)
+
+  servicio          Servicio  @relation(fields: [codigo_servicio], references: [codigo_servicio])
+  sede              Sede      @relation(fields: [codigo_sede], references: [codigo_sede])
+
+  @@map("horario_atencion")
+  @@schema("agenda")
+}
+
+model Slot {
+  codigo_slot         Int       @id @default(autoincrement())
+  codigo_servicio     Int
+  codigo_sede         Int
+  fecha               DateTime  @db.Date
+  hora_inicio         DateTime  @db.Time
+  hora_fin            DateTime  @db.Time
+  cupos_totales       Int       @default(1)
+  cupos_disponibles   Int       @default(1)
+  activo              Boolean   @default(true)
+  fecha_creacion      DateTime  @default(now())
+
+  servicio            Servicio  @relation(fields: [codigo_servicio], references: [codigo_servicio])
+  sede                Sede      @relation(fields: [codigo_sede], references: [codigo_sede])
+  citas               Cita[]
+
+  @@map("slot")
+  @@schema("agenda")
+}
+
+model Cita {
+  codigo_cita           Int       @id @default(autoincrement())
+  codigo_slot           Int
+  codigo_paciente       Int
+  codigo_cotizacion     Int?      @unique
+  estado                String    @default("AGENDADA") @db.VarChar(50)
+  observaciones         String?   @db.Text
+  motivo_cancelacion    String?   @db.Text
+  confirmada            Boolean   @default(false)
+  fecha_confirmacion    DateTime?
+  fecha_creacion        DateTime  @default(now())
+
+  slot                  Slot      @relation(fields: [codigo_slot], references: [codigo_slot])
+  paciente              Usuario   @relation("CitasPaciente", fields: [codigo_paciente], references: [codigo_usuario])
+  cotizacion            Cotizacion? @relation(fields: [codigo_cotizacion], references: [codigo_cotizacion])
+  muestras              Muestra[]
+
+  @@map("cita")
+  @@schema("agenda")
+}
+
+model Feriado {
+  codigo_feriado Int      @id @default(autoincrement())
+  fecha          DateTime @unique @db.Date
+  descripcion    String   @db.VarChar(200)
+  activo         Boolean  @default(true)
+  fecha_creacion DateTime @default(now())
+
+  @@map("feriado")
+  @@schema("agenda")
+}
+
+// =====================================================
+// ESQUEMA: catalogo
+// =====================================================
+
+model CategoriaExamen {
+  codigo_categoria  Int       @id @default(autoincrement())
+  nombre            String    @unique @db.VarChar(100)
+  descripcion       String?   @db.Text
+  activo            Boolean   @default(true)
+
+  examenes          Examen[]
+
+  @@map("categoria_examen")
+  @@schema("catalogo")
+}
+
+model Examen {
+  codigo_examen                 Int       @id @default(autoincrement())
+  codigo_categoria              Int?
+  codigo_interno                String    @unique @db.VarChar(50)
+  nombre                        String    @db.VarChar(200)
+  descripcion                   String?   @db.Text
+  requiere_ayuno                Boolean   @default(false)
+  horas_ayuno                   Int?
+  instrucciones_preparacion     String?   @db.Text
+  tiempo_entrega_horas          Int       @default(24)
+  tipo_muestra                  String?   @db.VarChar(100)
+  valor_referencia_min          Decimal?  @db.Decimal(10, 4)
+  valor_referencia_max          Decimal?  @db.Decimal(10, 4)
+  valores_referencia_texto      String?   @db.Text
+  unidad_medida                 String?   @db.VarChar(50)
+  activo                        Boolean   @default(true)
+  fecha_creacion                DateTime  @default(now())
+
+  categoria                     CategoriaExamen? @relation(fields: [codigo_categoria], references: [codigo_categoria])
+  precios                       Precio[]
+  detalles_cotizacion           CotizacionDetalle[]
+  detalles_pago                 PagoDetalle[]
+  resultados                    Resultado[]
+  examenes_en_paquetes          PaqueteExamen[]
+  insumos                       ExamenInsumo[]
+
+  @@map("examen")
+  @@schema("catalogo")
+}
+
+model Precio {
+  codigo_precio     Int       @id @default(autoincrement())
+  codigo_examen     Int
+  precio            Decimal   @db.Decimal(10, 2)
+  fecha_inicio      DateTime  @default(now()) @db.Date
+  fecha_fin         DateTime? @db.Date
+  activo            Boolean   @default(true)
+
+  examen            Examen    @relation(fields: [codigo_examen], references: [codigo_examen])
+
+  @@map("precio")
+  @@schema("catalogo")
+}
+
+model Paquete {
+  codigo_paquete    Int       @id @default(autoincrement())
+  nombre            String    @db.VarChar(200)
+  descripcion       String?   @db.Text
+  precio_paquete    Decimal   @db.Decimal(10, 2)
+  descuento         Decimal   @default(0) @db.Decimal(5, 2)
+  activo            Boolean   @default(true)
+  fecha_creacion    DateTime  @default(now())
+
+  examenes          PaqueteExamen[]
+
+  @@map("paquete")
+  @@schema("catalogo")
+}
+
+model PaqueteExamen {
+  codigo_paquete_examen   Int       @id @default(autoincrement())
+  codigo_paquete          Int
+  codigo_examen           Int
+
+  paquete                 Paquete   @relation(fields: [codigo_paquete], references: [codigo_paquete], onDelete: Cascade)
+  examen                  Examen    @relation(fields: [codigo_examen], references: [codigo_examen])
+
+  @@map("paquete_examen")
+  @@schema("catalogo")
+}
+
+// =====================================================
+// ESQUEMA: pagos
+// =====================================================
+
+model Cotizacion {
+  codigo_cotizacion         Int       @id @default(autoincrement())
+  codigo_paciente           Int
+  numero_cotizacion         String    @unique @db.VarChar(50)
+  fecha_cotizacion          DateTime  @default(now())
+  fecha_expiracion          DateTime
+  subtotal                  Decimal   @db.Decimal(10, 2)
+  descuento                 Decimal   @default(0) @db.Decimal(10, 2)
+  total                     Decimal   @db.Decimal(10, 2)
+  estado                    String    @default("PENDIENTE") @db.VarChar(50)
+  // PENDIENTE, PENDIENTE_PAGO_VENTANILLA, PAGO_EN_PROCESO, PAGADA, RECHAZADA, EXPIRADA
+  metodo_pago_seleccionado  String?   @db.VarChar(20)
+  // ONLINE (Stripe), VENTANILLA (presencial)
+  fecha_seleccion_pago      DateTime?
+  pago_confirmado_por       Int?
+  fecha_confirmacion_pago   DateTime?
+  observaciones             String?   @db.Text
+
+  paciente              Usuario   @relation(fields: [codigo_paciente], references: [codigo_usuario])
+  detalles              CotizacionDetalle[]
+  pagos                 Pago[]
+  cita                  Cita?
+
+  @@map("cotizacion")
+  @@schema("pagos")
+}
+
+model CotizacionDetalle {
+  codigo_detalle        Int       @id @default(autoincrement())
+  codigo_cotizacion     Int
+  codigo_examen         Int
+  cantidad              Int
+  precio_unitario       Decimal   @db.Decimal(10, 2)
+  total_linea           Decimal   @db.Decimal(10, 2)
+
+  cotizacion            Cotizacion @relation(fields: [codigo_cotizacion], references: [codigo_cotizacion], onDelete: Cascade)
+  examen                Examen     @relation(fields: [codigo_examen], references: [codigo_examen])
+
+  @@map("cotizacion_detalle")
+  @@schema("pagos")
+}
+
+model Pago {
+  codigo_pago               Int       @id @default(autoincrement())
+  codigo_cotizacion         Int?
+  codigo_paciente           Int
+  numero_pago               String    @unique @db.VarChar(50)
+  fecha_pago                DateTime  @default(now())
+  monto_total               Decimal   @db.Decimal(10, 2)
+  metodo_pago               String    @db.VarChar(50)
+  estado                    String    @default("PENDIENTE") @db.VarChar(50)
+  proveedor_pasarela        String?   @db.VarChar(100)
+  id_transaccion_externa    String?   @db.VarChar(200)
+  url_comprobante           String?   @db.Text
+  observaciones             String?   @db.Text
+
+  cotizacion                Cotizacion? @relation(fields: [codigo_cotizacion], references: [codigo_cotizacion])
+  paciente                  Usuario     @relation(fields: [codigo_paciente], references: [codigo_usuario])
+  detalles                  PagoDetalle[]
+  factura                   Factura?
+
+  @@map("pago")
+  @@schema("pagos")
+}
+
+model PagoDetalle {
+  codigo_detalle        Int       @id @default(autoincrement())
+  codigo_pago           Int
+  codigo_examen         Int
+  cantidad              Int
+  precio_unitario       Decimal   @db.Decimal(10, 2)
+  total_linea           Decimal   @db.Decimal(10, 2)
+
+  pago                  Pago      @relation(fields: [codigo_pago], references: [codigo_pago], onDelete: Cascade)
+  examen                Examen    @relation(fields: [codigo_examen], references: [codigo_examen])
+
+  @@map("pago_detalle")
+  @@schema("pagos")
+}
+
+model Factura {
+  codigo_factura            Int       @id @default(autoincrement())
+  codigo_pago               Int       @unique
+  numero_factura            String    @unique @db.VarChar(50)
+  fecha_emision             DateTime  @default(now())
+  subtotal                  Decimal   @db.Decimal(10, 2)
+  iva                       Decimal   @default(0) @db.Decimal(10, 2)
+  total                     Decimal   @db.Decimal(10, 2)
+  estado                    String    @default("EMITIDA") @db.VarChar(50)
+  url_pdf                   String?   @db.Text
+  clave_acceso              String?   @db.VarChar(100)
+
+  pago                      Pago      @relation(fields: [codigo_pago], references: [codigo_pago])
+
+  @@map("factura")
+  @@schema("pagos")
+}
+
+// =====================================================
+// ESQUEMA: resultados
+// =====================================================
+
+model Muestra {
+  codigo_muestra    Int       @id @default(autoincrement())
+  codigo_paciente   Int
+  codigo_cita       Int?
+  id_muestra        String    @unique @db.VarChar(50)
+  fecha_toma        DateTime  @default(now())
+  tipo_muestra      String?   @db.VarChar(100)
+  estado            String    @default("RECOLECTADA") @db.VarChar(50)
+  observaciones     String?   @db.Text
+  tomada_por        Int?
+
+  paciente          Usuario   @relation("MuestrasPaciente", fields: [codigo_paciente], references: [codigo_usuario])
+  cita              Cita?     @relation(fields: [codigo_cita], references: [codigo_cita])
+  tomador           Usuario?  @relation("MuestrasTomadas", fields: [tomada_por], references: [codigo_usuario])
+  resultados        Resultado[]
+
+  @@map("muestra")
+  @@schema("resultados")
+}
+
+model Resultado {
+  codigo_resultado          Int       @id @default(autoincrement())
+  codigo_muestra            Int
+  codigo_examen             Int
+  valor_numerico            Decimal?  @db.Decimal(15, 6)
+  valor_texto               String?   @db.Text
+  unidad_medida             String?   @db.VarChar(50)
+  dentro_rango_normal       Boolean?
+  nivel                     String?   @db.VarChar(20)
+  observaciones_tecnicas    String?   @db.Text
+  valor_referencia_min      Decimal?  @db.Decimal(10, 4)
+  valor_referencia_max      Decimal?  @db.Decimal(10, 4)
+  valores_referencia_texto  String?   @db.Text
+  estado                    String    @default("EN_PROCESO") @db.VarChar(50)
+  fecha_resultado           DateTime  @default(now())
+  procesado_por             Int?
+  validado_por              Int?
+  fecha_validacion          DateTime?
+  url_pdf                   String?   @db.Text
+  codigo_verificacion       String?   @db.VarChar(100)
+
+  muestra                   Muestra   @relation(fields: [codigo_muestra], references: [codigo_muestra])
+  examen                    Examen    @relation(fields: [codigo_examen], references: [codigo_examen])
+  procesador                Usuario?  @relation("ResultadosProcesados", fields: [procesado_por], references: [codigo_usuario])
+  validador                 Usuario?  @relation("ResultadosValidados", fields: [validado_por], references: [codigo_usuario])
+  descargas                 DescargaResultado[]
+
+  @@map("resultado")
+  @@schema("resultados")
+}
+
+model DescargaResultado {
+  codigo_descarga   Int       @id @default(autoincrement())
+  codigo_resultado  Int
+  codigo_usuario    Int
+  fecha_descarga    DateTime  @default(now())
+  ip_address        String?   @db.VarChar(45)
+  user_agent        String?   @db.Text
+
+  resultado         Resultado @relation(fields: [codigo_resultado], references: [codigo_resultado])
+  usuario           Usuario   @relation(fields: [codigo_usuario], references: [codigo_usuario])
+
+  @@map("descarga_resultado")
+  @@schema("resultados")
+}
+
+// =====================================================
+// ESQUEMA: inventario
+// =====================================================
+
+model CategoriaItem {
+  codigo_categoria  Int       @id @default(autoincrement())
+  nombre            String    @unique @db.VarChar(100)
+  descripcion       String?   @db.Text
+  activo            Boolean   @default(true)
+
+  items             Item[]
+
+  @@map("categoria_item")
+  @@schema("inventario")
+}
+
+model Item {
+  codigo_item           Int       @id @default(autoincrement())
+  codigo_categoria      Int?
+  codigo_interno        String    @unique @db.VarChar(50)
+  nombre                String    @db.VarChar(200)
+  descripcion           String?   @db.Text
+  unidad_medida         String    @db.VarChar(50)
+  stock_actual          Int       @default(0)
+  stock_minimo          Int       @default(0)
+  stock_maximo          Int?
+  costo_unitario        Decimal?  @db.Decimal(10, 2)
+  precio_venta          Decimal?  @db.Decimal(10, 2)
+
+  // Campos para control de reactivos
+  es_reactivo           Boolean   @default(false)  // Indica si es un reactivo que se abre
+  vida_util_dias_abierto Int?                      // Dias de vida util despues de abierto
+  capacidad_pruebas     Int?                       // Numero de pruebas por unidad/frasco
+
+  activo                Boolean   @default(true)
+  fecha_creacion        DateTime  @default(now())
+
+  categoria         CategoriaItem? @relation(fields: [codigo_categoria], references: [codigo_categoria])
+  lotes             Lote[]
+  movimientos       Movimiento[]
+  detalles_orden    OrdenCompraDetalle[]
+  insumos_examen    ExamenInsumo[]
+  alertas           AlertaInventario[]
+
+  @@map("item")
+  @@schema("inventario")
+}
+
+model Lote {
+  codigo_lote              Int       @id @default(autoincrement())
+  codigo_item              Int
+  numero_lote              String    @db.VarChar(100)
+  fecha_fabricacion        DateTime? @db.Date
+  fecha_vencimiento        DateTime? @db.Date
+  cantidad_inicial         Int
+  cantidad_actual          Int
+  proveedor                String?   @db.VarChar(200)
+  fecha_ingreso            DateTime  @default(now())
+
+  // Campos para control de apertura de reactivos
+  estado_lote              String    @default("CERRADO") @db.VarChar(20) // CERRADO, ABIERTO, AGOTADO, DESCARTADO
+  fecha_apertura           DateTime? @db.Timestamp                       // Cuando se abrio el lote
+  fecha_vencimiento_abierto DateTime? @db.Timestamp                      // Fecha vencimiento calculada tras apertura
+  pruebas_realizadas       Int       @default(0)                         // Contador de pruebas hechas
+  motivo_descarte          String?   @db.VarChar(100)                    // Razon del descarte
+  fecha_descarte           DateTime?                                     // Cuando se descarto
+
+  item                Item      @relation(fields: [codigo_item], references: [codigo_item])
+  movimientos         Movimiento[]
+
+  @@map("lote")
+  @@schema("inventario")
+}
+
+model Movimiento {
+  codigo_movimiento   Int       @id @default(autoincrement())
+  codigo_item         Int
+  codigo_lote         Int?
+  tipo_movimiento     String    @db.VarChar(50)
+  cantidad            Int
+  motivo              String?   @db.Text
+  referencia          String?   @db.VarChar(100)
+  stock_anterior      Int
+  stock_nuevo         Int
+  fecha_movimiento    DateTime  @default(now())
+  realizado_por       Int?
+
+  item                Item      @relation(fields: [codigo_item], references: [codigo_item])
+  lote                Lote?     @relation(fields: [codigo_lote], references: [codigo_lote])
+  usuario             Usuario?  @relation(fields: [realizado_por], references: [codigo_usuario])
+
+  @@map("movimiento")
+  @@schema("inventario")
+}
+
+model Proveedor {
+  codigo_proveedor    Int       @id @default(autoincrement())
+  ruc                 String    @unique @db.VarChar(13)
+  razon_social        String    @db.VarChar(200)
+  nombre_comercial    String?   @db.VarChar(200)
+  telefono            String?   @db.VarChar(15)
+  email               String?   @db.VarChar(100)
+  direccion           String?   @db.Text
+  activo              Boolean   @default(true)
+  fecha_creacion      DateTime  @default(now())
+
+  ordenes_compra      OrdenCompra[]
+
+  @@map("proveedor")
+  @@schema("inventario")
+}
+
+model OrdenCompra {
+  codigo_orden_compra       Int       @id @default(autoincrement())
+  codigo_proveedor          Int
+  numero_orden              String    @unique @db.VarChar(50)
+  fecha_orden               DateTime  @default(now())
+  fecha_entrega_estimada    DateTime? @db.Date
+  fecha_entrega_real        DateTime?
+  subtotal                  Decimal   @db.Decimal(10, 2)
+  iva                       Decimal   @default(0) @db.Decimal(10, 2)
+  total                     Decimal   @db.Decimal(10, 2)
+  estado                    String    @default("BORRADOR") @db.VarChar(50)
+  observaciones             String?   @db.Text
+  creado_por                Int?
+
+  proveedor                 Proveedor @relation(fields: [codigo_proveedor], references: [codigo_proveedor])
+  creador                   Usuario?  @relation(fields: [creado_por], references: [codigo_usuario])
+  detalles                  OrdenCompraDetalle[]
+
+  @@map("orden_compra")
+  @@schema("inventario")
+}
+
+model OrdenCompraDetalle {
+  codigo_detalle        Int       @id @default(autoincrement())
+  codigo_orden_compra   Int
+  codigo_item           Int
+  cantidad              Int
+  precio_unitario       Decimal   @db.Decimal(10, 2)
+  total_linea           Decimal   @db.Decimal(10, 2)
+
+  orden_compra          OrdenCompra @relation(fields: [codigo_orden_compra], references: [codigo_orden_compra], onDelete: Cascade)
+  item                  Item        @relation(fields: [codigo_item], references: [codigo_item])
+
+  @@map("orden_compra_detalle")
+  @@schema("inventario")
+}
+
+model ExamenInsumo {
+  codigo_examen_insumo Int       @id @default(autoincrement())
+  codigo_examen        Int
+  codigo_item          Int
+  cantidad_requerida   Decimal   @db.Decimal(10, 2)
+  activo               Boolean   @default(true)
+
+  examen               Examen    @relation(fields: [codigo_examen], references: [codigo_examen])
+  item                 Item      @relation(fields: [codigo_item], references: [codigo_item])
+
+  @@map("examen_insumo")
+  @@schema("inventario")
+}
+
+model AlertaInventario {
+  codigo_alerta       Int       @id @default(autoincrement())
+  codigo_item         Int
+  tipo_alerta         String    @db.VarChar(50)   // STOCK_BAJO, STOCK_CRITICO, VENCIMIENTO_PROXIMO
+  prioridad           String    @db.VarChar(20)   // BAJA, MEDIA, ALTA, CRITICA
+  mensaje             String    @db.Text
+  stock_actual        Int?
+  stock_minimo        Int?
+  fecha_vencimiento   DateTime? @db.Date
+  resuelta            Boolean   @default(false)
+  fecha_resolucion    DateTime?
+  resuelta_por        Int?
+  fecha_creacion      DateTime  @default(now())
+
+  item                Item      @relation(fields: [codigo_item], references: [codigo_item])
+
+  @@index([tipo_alerta])
+  @@index([resuelta])
+  @@index([fecha_creacion])
+  @@map("alerta_inventario")
+  @@schema("inventario")
+}
+
+// =====================================================
+// ESQUEMA: comunicaciones
+// =====================================================
+
+model Conversacion {
+  codigo_conversacion       Int       @id @default(autoincrement())
+  codigo_usuario            Int?
+  tipo                      String    @db.VarChar(50)
+  estado                    String    @default("ACTIVA") @db.VarChar(50)
+  transferida_a_humano      Boolean   @default(false)
+  atendido_por              Int?
+  fecha_transferencia       DateTime?
+  fecha_inicio              DateTime  @default(now())
+  fecha_fin                 DateTime?
+  ip_address                String?   @db.VarChar(45)
+  user_agent                String?   @db.Text
+
+  usuario                   Usuario?  @relation("ConversacionesUsuario", fields: [codigo_usuario], references: [codigo_usuario])
+  operador                  Usuario?  @relation("ConversacionesAtendidas", fields: [atendido_por], references: [codigo_usuario])
+  mensajes                  Mensaje[]
+
+  @@map("conversacion")
+  @@schema("comunicaciones")
+}
+
+model Mensaje {
+  codigo_mensaje        Int       @id @default(autoincrement())
+  codigo_conversacion   Int
+  remitente             String    @db.VarChar(50)
+  codigo_remitente      Int?
+  contenido             String    @db.Text
+  tipo_contenido        String    @default("TEXTO") @db.VarChar(50)
+  fecha_envio           DateTime  @default(now())
+  leido                 Boolean   @default(false)
+  fecha_lectura         DateTime?
+  intent                String?   @db.VarChar(100)
+  confidence            Decimal?  @db.Decimal(5, 4)
+
+  conversacion          Conversacion @relation(fields: [codigo_conversacion], references: [codigo_conversacion], onDelete: Cascade)
+  usuario               Usuario?     @relation(fields: [codigo_remitente], references: [codigo_usuario])
+
+  @@map("mensaje")
+  @@schema("comunicaciones")
+}
+
+model Notificacion {
+  codigo_notificacion   Int       @id @default(autoincrement())
+  codigo_usuario        Int
+  tipo                  String    @db.VarChar(50)
+  asunto                String?   @db.VarChar(200)
+  contenido             String    @db.Text
+  tipo_referencia       String?   @db.VarChar(50)
+  codigo_referencia     Int?
+  enviada               Boolean   @default(false)
+  fecha_envio           DateTime?
+  fecha_programada      DateTime?
+  error                 String?   @db.Text
+
+  usuario               Usuario   @relation(fields: [codigo_usuario], references: [codigo_usuario])
+
+  @@map("notificacion")
+  @@schema("comunicaciones")
+}
+
+// =====================================================
+// ESQUEMA: auditoria
+// =====================================================
+
+model LogActividad {
+  codigo_log          Int       @id @default(autoincrement())
+  codigo_usuario      Int?
+  accion              String    @db.VarChar(100)
+  entidad             String?   @db.VarChar(100)
+  codigo_entidad      Int?
+  descripcion         String?   @db.Text
+  ip_address          String?   @db.VarChar(45)
+  user_agent          String?   @db.Text
+  request_id          String?   @db.VarChar(100)
+  datos_anteriores    Json?
+  datos_nuevos        Json?
+  fecha_accion        DateTime  @default(now())
+
+  usuario             Usuario?  @relation(fields: [codigo_usuario], references: [codigo_usuario])
+
+  @@map("log_actividad")
+  @@schema("auditoria")
+}
+
+model LogError {
+  codigo_log_error    Int       @id @default(autoincrement())
+  codigo_usuario      Int?
+  nivel               String    @db.VarChar(20)
+  mensaje             String    @db.Text
+  stack_trace         String?   @db.Text
+  endpoint            String?   @db.VarChar(200)
+  metodo              String?   @db.VarChar(10)
+  ip_address          String?   @db.VarChar(45)
+  user_agent          String?   @db.Text
+  request_id          String?   @db.VarChar(100)
+  fecha_error         DateTime  @default(now())
+
+  usuario             Usuario?  @relation(fields: [codigo_usuario], references: [codigo_usuario])
+
+  @@map("log_error")
+  @@schema("auditoria")
+}
+
+// =====================================================
+// CHATBOT - LOGGING DE CONVERSACIONES
+// =====================================================
+
+model ConfiguracionChatbot {
+  codigo_configuracion      Int      @id @default(autoincrement())
+  activo                    Boolean  @default(true)
+  umbral_confianza          Decimal  @default(0.7) @db.Decimal(3, 2)
+  mensaje_bienvenida        String?  @db.Text
+  mensaje_fallo             String   @default("Lo siento, no entendí tu consulta. ¿Podrías reformularla?") @db.Text
+  permitir_acceso_resultados Boolean @default(false)
+  fecha_actualizacion       DateTime @default(now()) @updatedAt
+
+  @@map("configuracion_chatbot")
+  @@schema("auditoria")
+}
+
+model ConversacionChatbot {
+  codigo_conversacion Int      @id @default(autoincrement())
+  codigo_paciente     Int?
+  session_id          String   @unique @db.VarChar(200)
+  fecha_inicio        DateTime @default(now())
+  fecha_ultimo_msg    DateTime @default(now())
+  activa              Boolean  @default(true)
+
+  paciente Usuario?         @relation("ConversacionesChatbot", fields: [codigo_paciente], references: [codigo_usuario])
+  mensajes MensajeChatbot[]
+
+  @@index([codigo_paciente])
+  @@index([session_id])
+  @@map("conversacion_chatbot")
+  @@schema("auditoria")
+}
+
+model MensajeChatbot {
+  codigo_mensaje      Int      @id @default(autoincrement())
+  codigo_conversacion Int
+  remitente           String   @db.VarChar(10)
+  contenido           String   @db.Text
+  intent              String?  @db.VarChar(200)
+  confianza           Decimal? @db.Decimal(3, 2)
+  timestamp           DateTime @default(now())
+
+  conversacion ConversacionChatbot @relation(fields: [codigo_conversacion], references: [codigo_conversacion], onDelete: Cascade)
+
+  @@index([codigo_conversacion])
+  @@map("mensaje_chatbot")
+  @@schema("auditoria")
+}
+
+// =====================================================
+// ESQUEMA: auditoria - LOGS DE SEGURIDAD
+// =====================================================
+
+model LogIntentoLogin {
+  codigo_intento      Int       @id @default(autoincrement())
+  identificador       String    @db.VarChar(100)  // email o cédula usada
+  ip_address          String    @db.VarChar(45)
+  user_agent          String?   @db.Text
+  exitoso             Boolean   @default(false)
+  motivo_fallo        String?   @db.VarChar(100)  // CREDENCIALES_INVALIDAS, CUENTA_BLOQUEADA, etc.
+  codigo_usuario      Int?                        // Si se encontró el usuario
+  pais                String?   @db.VarChar(50)
+  ciudad              String?   @db.VarChar(100)
+  fecha_intento       DateTime  @default(now())
+
+  usuario             Usuario?  @relation("IntentosLogin", fields: [codigo_usuario], references: [codigo_usuario])
+
+  @@index([ip_address])
+  @@index([identificador])
+  @@index([fecha_intento])
+  @@map("log_intento_login")
+  @@schema("auditoria")
+}
+
+model AlertaSeguridad {
+  codigo_alerta       Int       @id @default(autoincrement())
+  tipo_alerta         String    @db.VarChar(50)   // FUERZA_BRUTA, MULTIPLES_IPS, CUENTA_BLOQUEADA, etc.
+  nivel               String    @db.VarChar(20)   // INFO, WARNING, CRITICAL
+  descripcion         String    @db.Text
+  ip_address          String?   @db.VarChar(45)
+  codigo_usuario      Int?
+  datos_adicionales   Json?                       // Información extra en JSON
+  resuelta            Boolean   @default(false)
+  fecha_resolucion    DateTime?
+  resuelta_por        Int?
+  fecha_alerta        DateTime  @default(now())
+
+  @@index([tipo_alerta])
+  @@index([nivel])
+  @@index([fecha_alerta])
+  @@index([resuelta])
+  @@map("alerta_seguridad")
+  @@schema("auditoria")
+}
+
+model AuditoriaTabla {
+  codigo_auditoria    Int       @id @default(autoincrement())
+  tabla               String    @db.VarChar(100)
+  operacion           String    @db.VarChar(10)   // INSERT, UPDATE, DELETE
+  codigo_registro     Int?
+  datos_anteriores    Json?                       // old_value
+  datos_nuevos        Json?                       // new_value
+  codigo_usuario      Int?
+  ip_address          String?   @db.VarChar(45)
+  fecha_operacion     DateTime  @default(now())
+
+  @@index([tabla])
+  @@index([operacion])
+  @@index([fecha_operacion])
+  @@map("auditoria_tabla")
+  @@schema("auditoria")
+}
